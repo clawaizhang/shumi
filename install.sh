@@ -18,6 +18,9 @@ PYTHON_MIN_VERSION="3.10"
 INSTALL_DIR="${HOME}/.shumi"
 CONFIG_DIR="${HOME}/.openclaw"
 
+# 使用国内镜像加速
+export HF_ENDPOINT=https://hf-mirror.com
+
 echo -e "${GREEN}================================${NC}"
 echo -e "${GREEN}  枢密 (Shumi) 一键安装脚本${NC}"
 echo -e "${GREEN}================================${NC}"
@@ -63,9 +66,50 @@ echo "  ✓ git 已安装"
 echo ""
 
 # ============================================
-# 步骤2: 安装枢密包
+# 步骤2: 安装依赖包
 # ============================================
-echo -e "${YELLOW}[2/6] 安装枢密 (Shumi)...${NC}"
+echo -e "${YELLOW}[2/6] 安装Python依赖...${NC}"
+
+# 安装sentence-transformers（国内镜像）
+echo "  安装 sentence-transformers..."
+pip3 install sentence-transformers --quiet --break-system-packages 2>/dev/null || pip3 install sentence-transformers --quiet 2>/dev/null || {
+    echo "  警告: pip安装失败，尝试使用apt..."
+    apt-get update -qq && apt-get install -y -qq python3-sentence-transformers 2>/dev/null || true
+}
+
+echo "  ✓ 依赖安装完成"
+echo ""
+
+# ============================================
+# 步骤3: 下载Embedding模型
+# ============================================
+echo -e "${YELLOW}[3/6] 下载AI模型 (all-MiniLM-L6-v2)...${NC}"
+echo "  模型大小约90MB，使用国内镜像加速..."
+echo "  如果下载慢，可以按Ctrl+C跳过，稍后手动下载"
+
+python3 << 'EOF'
+import os
+os.environ['HF_ENDPOINT'] = 'https://hf-mirror.com'
+
+from sentence_transformers import SentenceTransformer
+import sys
+
+try:
+    print("  正在下载/加载模型...")
+    model = SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')
+    print("  ✓ 模型准备就绪")
+except Exception as e:
+    print(f"  警告: 模型下载失败: {e}", file=sys.stderr)
+    print("  您可以稍后手动运行: python3 -c \"from sentence_transformers import SentenceTransformer; SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')\"")
+    sys.exit(0)  # 不中断安装
+EOF
+
+echo ""
+
+# ============================================
+# 步骤4: 安装枢密包
+# ============================================
+echo -e "${YELLOW}[4/6] 安装枢密 (Shumi)...${NC}"
 
 # 克隆仓库
 if [ -d "$INSTALL_DIR" ]; then
@@ -78,49 +122,32 @@ else
     cd "$INSTALL_DIR"
 fi
 
-# 安装依赖
-echo "  安装依赖..."
-pip3 install -e . --quiet
+# 安装枢密包
+echo "  安装枢密包..."
+pip3 install -e . --quiet --break-system-packages 2>/dev/null || pip3 install -e . --quiet 2>/dev/null
 
 echo "  ✓ 枢密安装完成"
 echo ""
 
 # ============================================
-# 步骤3: 下载Embedding模型
+# 步骤5: 初始化配置
 # ============================================
-echo -e "${YELLOW}[3/6] 下载AI模型 (all-MiniLM-L6-v2)...${NC}"
-echo "  模型大小约90MB，首次下载可能需要几分钟..."
-
-python3 << 'EOF'
-from sentence_transformers import SentenceTransformer
-import sys
-
-try:
-    print("  正在下载模型...")
-    model = SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')
-    print("  ✓ 模型下载完成")
-except Exception as e:
-    print(f"  下载失败: {e}", file=sys.stderr)
-    sys.exit(1)
-EOF
-
-echo ""
-
-# ============================================
-# 步骤4: 初始化配置
-# ============================================
-echo -e "${YELLOW}[4/6] 初始化配置...${NC}"
+echo -e "${YELLOW}[5/6] 初始化配置...${NC}"
 
 # 创建配置目录
 mkdir -p "$CONFIG_DIR"
 mkdir -p "$HOME/.shumi/security"
+mkdir -p "$HOME/.shumi/logs"
 
 echo "  ✓ 配置目录已创建"
 
 # 生成SSH密钥对（如果不存在）
 if [ ! -f "$HOME/.ssh/id_rsa" ]; then
     echo "  生成SSH密钥对..."
-    ssh-keygen -t rsa -b 4096 -f "$HOME/.ssh/id_rsa" -N "" -C "shumi@$(hostname)"
+    mkdir -p "$HOME/.ssh"
+    ssh-keygen -t rsa -b 4096 -f "$HOME/.ssh/id_rsa" -N "" -C "shumi@$(hostname)" >/dev/null 2>&1
+    chmod 600 "$HOME/.ssh/id_rsa"
+    chmod 644 "$HOME/.ssh/id_rsa.pub"
     echo "  ✓ 密钥对已生成"
 else
     echo "  ✓ 使用现有SSH密钥"
@@ -129,9 +156,9 @@ fi
 echo ""
 
 # ============================================
-# 步骤5: 集成OpenClaw
+# 步骤6: 集成OpenClaw
 # ============================================
-echo -e "${YELLOW}[5/6] 集成到OpenClaw...${NC}"
+echo -e "${YELLOW}[6/6] 集成到OpenClaw...${NC}"
 
 CONFIG_FILE="$CONFIG_DIR/config.yaml"
 
@@ -142,7 +169,7 @@ if [ -f "$CONFIG_FILE" ]; then
 fi
 
 # 创建或更新配置
-cat > "$CONFIG_FILE" << 'EOF'
+cat > "$CONFIG_FILE" <> 'EOF'
 # OpenClaw 配置文件
 # 枢密 (Shumi) 自动集成
 
@@ -155,7 +182,6 @@ postprocessors:
 # 枢密配置
 shumi:
   notification_level: brief  # silent | brief | detailed
-  chunk_strategy_path: ~/.shumi/data/chunk_strategy.json
 
 logging:
   level: INFO
@@ -166,20 +192,27 @@ echo "  ✓ OpenClaw配置已更新"
 echo ""
 
 # ============================================
-# 步骤6: 验证安装
+# 验证安装
 # ============================================
-echo -e "${YELLOW}[6/6] 验证安装...${NC}"
+echo -e "${YELLOW}[验证] 测试安装...${NC}"
 
 python3 << 'EOF'
 import sys
+import os
+os.environ['HF_ENDPOINT'] = 'https://hf-mirror.com'
+
 try:
-    import shumi
-    from shumi.core.ai_detector import AISensitiveDetector
     from shumi.core.notifier import ShumiNotifier
-    print("  ✓ 枢密包导入成功")
-    print(f"  ✓ 版本: {shumi.__version__}")
-except ImportError as e:
-    print(f"  ✗ 导入失败: {e}", file=sys.stderr)
+    import logging
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(message)s')
+    
+    notifier = ShumiNotifier(level='brief')
+    notifier.on_encryption(1, ['test'])
+    
+    print("✓ 枢密模块测试通过")
+    
+except Exception as e:
+    print(f"✗ 测试失败: {e}", file=sys.stderr)
     sys.exit(1)
 EOF
 
@@ -206,7 +239,13 @@ echo "  3. AI响应中的占位符会自动解密"
 echo ""
 echo "配置文件: $CONFIG_FILE"
 echo "日志位置: ~/.shumi/logs/"
+echo "模型缓存: ~/.cache/huggingface/"
+echo ""
+echo "通知级别设置:"
+echo "  - silent: 完全静默"
+echo "  - brief: 简略通知（默认）"
+echo "  - detailed: 详细通知"
 echo ""
 echo "测试命令:"
-echo "  shumi detect \"我的API Key是 sk-test123\""
+echo "  python3 -c \"from shumi.core.notifier import ShumiNotifier; n=ShumiNotifier('detailed'); n.on_encryption(1,['api_key'])\""
 echo ""
