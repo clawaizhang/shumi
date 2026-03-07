@@ -130,9 +130,41 @@ echo "  ✓ 枢密安装完成"
 echo ""
 
 # ============================================
-# 步骤5: 初始化配置
+# 步骤5: 预加载模型（待命状态）
 # ============================================
-echo -e "${YELLOW}[5/6] 初始化配置...${NC}"
+echo -e "${YELLOW}[5/6] 预加载模型进入待命状态...${NC}"
+
+python3 << 'EOF'
+import os
+import sys
+os.environ['HF_ENDPOINT'] = 'https://hf-mirror.com'
+
+try:
+    print("  正在初始化AI检测器...")
+    sys.path.insert(0, '/root/.shumi/src')
+    
+    from shumi.core.ai_detector import SensitiveDetector
+    
+    # 创建检测器实例（会加载模型）
+    detector = SensitiveDetector()
+    
+    # 执行一次空检测，确保模型完全加载
+    print("  正在预热模型...")
+    detector.detect("test")
+    
+    print("  ✓ 模型已进入待命状态")
+    
+except Exception as e:
+    print(f"  警告: 模型预加载失败: {e}", file=sys.stderr)
+    print("  首次使用时将自动加载")
+EOF
+
+echo ""
+
+# ============================================
+# 步骤6: 初始化配置
+# ============================================
+echo -e "${YELLOW}[6/7] 初始化配置...${NC}"
 
 # 创建配置目录
 mkdir -p "$CONFIG_DIR"
@@ -192,9 +224,9 @@ echo "  ✓ OpenClaw配置已更新"
 echo ""
 
 # ============================================
-# 验证安装
+# 步骤7: 验证安装
 # ============================================
-echo -e "${YELLOW}[验证] 测试安装...${NC}"
+echo -e "${YELLOW}[7/7] 验证安装...${NC}"
 
 python3 << 'EOF'
 import sys
