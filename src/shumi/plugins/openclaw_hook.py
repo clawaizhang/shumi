@@ -142,6 +142,11 @@ class SecurityAuditHook:
                 # 无敏感信息，静默处理，不通知
                 return text
             
+            # 如果没有加密器，直接返回原文（只检测不加密）
+            if not self._encryptor:
+                logger.warning("Encryptor not available, returning original text")
+                return text
+            
             # 记录检测到的类型
             detected_types = [m['category'] for m in matches]
             
