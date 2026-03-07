@@ -1,0 +1,212 @@
+{
+  "api_keys": [
+    {
+      "name": "short_cluster_0",
+      "cluster": "cluster_0",
+      "chunk_size": 50,
+      "step_size": 25,
+      "coverage": "90%",
+      "sample_count": 8000,
+      "center": 40.0
+    },
+    {
+      "name": "short_cluster_1",
+      "cluster": "cluster_1",
+      "chunk_size": 50,
+      "step_size": 25,
+      "coverage": "90%",
+      "sample_count": 5000,
+      "center": 20.0
+    },
+    {
+      "name": "short_cluster_3",
+      "cluster": "cluster_3",
+      "chunk_size": 50,
+      "step_size": 25,
+      "coverage": "90%",
+      "sample_count": 1500,
+      "center": 32.0
+    },
+    {
+      "name": "short_cluster_4",
+      "cluster": "cluster_4",
+      "chunk_size": 50,
+      "step_size": 25,
+      "coverage": "90%",
+      "sample_count": 2000,
+      "center": 26.0
+    },
+    {
+      "name": "medium_cluster_2",
+      "cluster": "cluster_2",
+      "chunk_size": 51,
+      "step_size": 25,
+      "coverage": "90%",
+      "sample_count": 2000,
+      "center": 51.0
+    },
+    {
+      "name": "medium_cluster_5",
+      "cluster": "cluster_5",
+      "chunk_size": 55,
+      "step_size": 27,
+      "coverage": "90%",
+      "sample_count": 1500,
+      "center": 55.0
+    }
+  ],
+  "passwords": [
+    {
+      "name": "short_cluster_0",
+      "cluster": "cluster_0",
+      "chunk_size": 50,
+      "step_size": 25,
+      "coverage": "90%",
+      "sample_count": 12485,
+      "center": 16.4
+    },
+    {
+      "name": "short_cluster_1",
+      "cluster": "cluster_1",
+      "chunk_size": 50,
+      "step_size": 25,
+      "coverage": "90%",
+      "sample_count": 3734,
+      "center": 38.8
+    }
+  ],
+  "tokens": [
+    {
+      "name": "short_cluster_0",
+      "cluster": "cluster_0",
+      "chunk_size": 50,
+      "step_size": 25,
+      "coverage": "90%",
+      "sample_count": 7000,
+      "center": 32.0
+    },
+    {
+      "name": "short_cluster_1",
+      "cluster": "cluster_1",
+      "chunk_size": 50,
+      "step_size": 25,
+      "coverage": "90%",
+      "sample_count": 5000,
+      "center": 47.0
+    },
+    {
+      "name": "short_cluster_2",
+      "cluster": "cluster_2",
+      "chunk_size": 50,
+      "step_size": 25,
+      "coverage": "90%",
+      "sample_count": 2000,
+      "center": 28.0
+    },
+    {
+      "name": "short_cluster_3",
+      "cluster": "cluster_3",
+      "chunk_size": 50,
+      "step_size": 25,
+      "coverage": "90%",
+      "sample_count": 4000,
+      "center": 29.0
+    }
+  ],
+  "jwt": [
+    {
+      "name": "long_cluster_2",
+      "cluster": "cluster_2",
+      "chunk_size": 291,
+      "step_size": 145,
+      "coverage": "90%",
+      "sample_count": 2500,
+      "center": 291.0
+    },
+    {
+      "name": "xlarge_cluster_0",
+      "cluster": "cluster_0",
+      "chunk_size": 491,
+      "step_size": 245,
+      "coverage": "90%",
+      "sample_count": 2500,
+      "center": 491.0
+    },
+    {
+      "name": "xlarge_cluster_1",
+      "cluster": "cluster_1",
+      "chunk_size": 512,
+      "step_size": 256,
+      "coverage": "90%",
+      "sample_count": 2500,
+      "center": 1557.0
+    },
+    {
+      "name": "xlarge_cluster_3",
+      "cluster": "cluster_3",
+      "chunk_size": 512,
+      "step_size": 256,
+      "coverage": "90%",
+      "sample_count": 2500,
+      "center": 891.0
+    }
+  ],
+  "credentials": [
+    {
+      "name": "short_cluster_0",
+      "cluster": "cluster_0",
+      "chunk_size": 51,
+      "step_size": 25,
+      "coverage": "90%",
+      "sample_count": 5460,
+      "center": 45.4
+    },
+    {
+      "name": "medium_cluster_1",
+      "cluster": "cluster_1",
+      "chunk_size": 64,
+      "step_size": 32,
+      "coverage": "90%",
+      "sample_count": 6545,
+      "center": 57.8
+    }
+  ],
+  "crypto_keys": [
+    {
+      "name": "short_cluster_3",
+      "cluster": "cluster_3",
+      "chunk_size": 50,
+      "step_size": 25,
+      "coverage": "90%",
+      "sample_count": 2000,
+      "center": 44.0
+    },
+    {
+      "name": "medium_cluster_1",
+      "cluster": "cluster_1",
+      "chunk_size": 71,
+      "step_size": 35,
+      "coverage": "90%",
+      "sample_count": 1500,
+      "center": 71.0
+    },
+    {
+      "name": "xlarge_cluster_0",
+      "cluster": "cluster_0",
+      "chunk_size": 512,
+      "step_size": 256,
+      "coverage": "90%",
+      "sample_count": 1000,
+      "center": 1489.0
+    },
+    {
+      "name": "xlarge_cluster_2",
+      "cluster": "cluster_2",
+      "chunk_size": 512,
+      "step_size": 256,
+      "coverage": "90%",
+      "sample_count": 1500,
+      "center": 1686.0
+    }
+  ]
+}

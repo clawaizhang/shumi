@@ -13,6 +13,7 @@ from typing import Optional, Dict, Any, List
 from pathlib import Path
 
 from shumi.core.detector import SensitiveInfoDetector, MatchResult
+from shumi.core.ai_detector import AISensitiveDetector
 from shumi.core.encryptor import LocalEncryptor, LocalDecryptor
 from shumi.core.placeholder import PlaceholderManager, is_placeholder
 from shumi.core.auditor import SecurityAuditor, get_default_auditor
@@ -48,6 +49,7 @@ class SecurityAuditHook:
         
         # 组件
         self._detector: Optional[SensitiveInfoDetector] = None
+        self._ai_detector: Optional[AISensitiveDetector] = None
         self._encryptor: Optional[LocalEncryptor] = None
         self._decryptor: Optional[LocalDecryptor] = None
         self._placeholder_manager: Optional[PlaceholderManager] = None
@@ -55,6 +57,7 @@ class SecurityAuditHook:
         
         # 配置
         self._min_confidence = self._config.get('min_confidence', 0.5)
+        self._use_ai_detector = self._config.get('use_ai_detector', True)  # 默认启用AI检测器
         
         self._init_components()
     
@@ -63,6 +66,21 @@ class SecurityAuditHook:
         try:
             # 初始化检测器
             self._detector = SensitiveInfoDetector()
+            
+            # 初始化AI检测器（基于Embedding模型）
+            if self._use_ai_detector:
+                try:
+                    chunk_strategy_path = self._config.get('chunk_strategy_path')
+                    if not chunk_strategy_path:
+                        # 使用默认路径
+                        import shumi
+                        chunk_strategy_path = Path(shumi.__file__).parent / 'data' / 'chunk_strategy.json'
+                    
+                    self._ai_detector = AISensitiveDetector(chunk_strategy_path)
+                    logger.info(f"AI detector initialized with strategy: {chunk_strategy_path}")
+                except Exception as e:
+                    logger.warning(f"Failed to initialize AI detector: {e}, falling back to regex only")
+                    self._ai_detector = None
             
             # 初始化加密器（公钥加密，用于发送给AI前加密）
             public_key_path = self._config.get('public_key_path')
@@ -128,17 +146,35 @@ class SecurityAuditHook:
             return text
         
         try:
-            # 检测敏感信息
-            matches = self._detector.detect(text, self._min_confidence)
+            all_matches = []
             
-            if not matches:
+            # 1. 正则检测器
+            regex_matches = self._detector.detect(text, self._min_confidence)
+            all_matches.extend(regex_matches)
+            
+            # 2. AI检测器（如果启用）
+            if self._ai_detector:
+                ai_matches = self._ai_detector.detect(text)
+                # 合并AI检测结果，避免与正则结果重复
+                for ai_match in ai_matches:
+                    # 检查是否已被正则检测到
+                    if not any(rm.start_pos <= ai_match['start'] <= rm.end_pos for rm in regex_matches):
+                        all_matches.append(MatchResult(
+                            matched_text=ai_match['text'],
+                            match_type=ai_match['category'],
+                            start_pos=ai_match['start'],
+                            end_pos=ai_match['end'],
+                            confidence=ai_match['confidence']
+                        ))
+            
+            if not all_matches:
                 return text
             
-            logger.info(f"[Preprocess] Detected {len(matches)} sensitive items to encrypt")
+            logger.info(f"[Preprocess] Detected {len(all_matches)} sensitive items to encrypt")
             
             # 从后往前处理，避免位置偏移
             processed_text = text
-            for match in sorted(matches, key=lambda m: m.start_pos, reverse=True):
+            for match in sorted(all_matches, key=lambda m: m.start_pos, reverse=True):
                 try:
                     placeholder = self._encrypt_match(match)
                     if placeholder:
