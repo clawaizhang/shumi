@@ -1,15 +1,20 @@
 """
-OpenClaw预处理Hook - 户部负责
-集成到OpenClaw消息预处理流程
+OpenClaw预处理/后处理Hook - 户部负责
+集成到OpenClaw消息预处理和后处理流程
+
+核心功能：
+1. 预处理(preprocess): 用户输入 → 加密敏感信息 → 发送给AI
+2. 后处理(postprocess): AI响应 → 解密占位符 → 呈现给用户/执行工具
 """
 
 import logging
+import re
 from typing import Optional, Dict, Any, List
 from pathlib import Path
 
 from shumi.core.detector import SensitiveInfoDetector, MatchResult
-from shumi.core.encryptor import LocalEncryptor
-from shumi.core.placeholder import PlaceholderManager
+from shumi.core.encryptor import LocalEncryptor, LocalDecryptor
+from shumi.core.placeholder import PlaceholderManager, is_placeholder
 from shumi.core.auditor import SecurityAuditor, get_default_auditor
 
 logger = logging.getLogger(__name__)
@@ -19,15 +24,15 @@ class SecurityAuditHook:
     """
     OpenClaw安全审计Hook
     
-    功能：
-    1. 拦截所有发往AI的消息
-    2. 检测敏感信息
-    3. 加密并替换为占位符
-    4. 记录审计日志
+    双向处理：
+    1. 【预处理】用户输入 → 检测敏感信息 → 加密 → 发送给AI
+    2. 【后处理】AI响应 → 检测占位符 → 解密 → 呈现给用户
     
     使用方式：
     在OpenClaw配置中添加：
     preprocessors:
+      - shumi.plugins.openclaw_hook:SecurityAuditHook
+    postprocessors:
       - shumi.plugins.openclaw_hook:SecurityAuditHook
     """
     
@@ -36,12 +41,7 @@ class SecurityAuditHook:
         初始化Hook
         
         Args:
-            config: 配置字典，包含：
-                - public_key_path: SSH公钥路径
-                - min_confidence: 最低检测置信度（默认0.5）
-                - enabled_types: 启用的检测类型列表
-                - placeholder_storage: 占位符存储路径
-                - audit_log_path: 审计日志路径
+            config: 配置字典
         """
         self._config = config or {}
         self._initialized = False
@@ -49,12 +49,12 @@ class SecurityAuditHook:
         # 组件
         self._detector: Optional[SensitiveInfoDetector] = None
         self._encryptor: Optional[LocalEncryptor] = None
+        self._decryptor: Optional[LocalDecryptor] = None
         self._placeholder_manager: Optional[PlaceholderManager] = None
         self._auditor: Optional[SecurityAuditor] = None
         
         # 配置
         self._min_confidence = self._config.get('min_confidence', 0.5)
-        self._enabled_types = self._config.get('enabled_types')
         
         self._init_components()
     
@@ -64,13 +64,12 @@ class SecurityAuditHook:
             # 初始化检测器
             self._detector = SensitiveInfoDetector()
             
-            # 初始化加密器（需要公钥）
+            # 初始化加密器（公钥加密，用于发送给AI前加密）
             public_key_path = self._config.get('public_key_path')
             if public_key_path:
                 self._encryptor = LocalEncryptor(public_key_path)
                 logger.info(f"Loaded public key from: {public_key_path}")
             else:
-                # 尝试默认路径
                 default_paths = [
                     Path.home() / '.ssh' / 'id_rsa.pub',
                     Path.home() / '.ssh' / 'id_ed25519.pub',
@@ -81,16 +80,28 @@ class SecurityAuditHook:
                         logger.info(f"Loaded public key from default path: {path}")
                         break
             
+            # 初始化解密器（私钥解密，用于AI响应后解密）
+            private_key_path = self._config.get('private_key_path')
+            if private_key_path and Path(private_key_path).exists():
+                self._decryptor = LocalDecryptor(private_key_path)
+                logger.info(f"Loaded private key from: {private_key_path}")
+            else:
+                default_private_paths = [
+                    Path.home() / '.ssh' / 'id_rsa',
+                    Path.home() / '.ssh' / 'id_ed25519',
+                ]
+                for path in default_private_paths:
+                    if path.exists():
+                        self._decryptor = LocalDecryptor(path)
+                        logger.info(f"Loaded private key from default path: {path}")
+                        break
+            
             # 初始化占位符管理器
             placeholder_storage = self._config.get('placeholder_storage')
             self._placeholder_manager = PlaceholderManager(placeholder_storage)
             
             # 初始化审计器
-            audit_log_path = self._config.get('audit_log_path')
-            if audit_log_path:
-                self._auditor = SecurityAuditor(audit_log_path)
-            else:
-                self._auditor = get_default_auditor()
+            self._auditor = get_default_auditor()
             
             self._initialized = True
             logger.info("SecurityAuditHook initialized successfully")
@@ -99,11 +110,11 @@ class SecurityAuditHook:
             logger.error(f"Failed to initialize SecurityAuditHook: {e}")
             self._initialized = False
     
-    def process(self, text: str, context: Optional[Dict[str, Any]] = None) -> str:
+    # ==================== 预处理：用户输入 → 加密 → 发送给AI ====================
+    
+    def preprocess(self, text: str, context: Optional[Dict[str, Any]] = None) -> str:
         """
-        处理输入文本
-        
-        这是OpenClaw预处理Hook的主入口
+        【预处理】处理用户输入，加密敏感信息后发送给AI
         
         Args:
             text: 用户输入文本
@@ -112,12 +123,8 @@ class SecurityAuditHook:
         Returns:
             处理后的文本（敏感信息已替换为占位符）
         """
-        if not self._initialized:
-            logger.warning("SecurityAuditHook not initialized, skipping processing")
-            return text
-        
-        if not self._encryptor or not self._encryptor.is_ready():
-            logger.warning("Encryptor not ready, skipping processing")
+        if not self._initialized or not self._encryptor or not self._encryptor.is_ready():
+            logger.warning("Encryptor not ready, skipping encryption")
             return text
         
         try:
@@ -127,41 +134,31 @@ class SecurityAuditHook:
             if not matches:
                 return text
             
-            logger.info(f"Detected {len(matches)} sensitive items")
+            logger.info(f"[Preprocess] Detected {len(matches)} sensitive items to encrypt")
             
-            # 处理匹配项（从后往前，避免位置偏移）
+            # 从后往前处理，避免位置偏移
             processed_text = text
             for match in sorted(matches, key=lambda m: m.start_pos, reverse=True):
                 try:
-                    placeholder = self._process_match(match)
+                    placeholder = self._encrypt_match(match)
                     if placeholder:
-                        # 替换文本
                         processed_text = (
                             processed_text[:match.start_pos] +
                             placeholder +
                             processed_text[match.end_pos:]
                         )
                 except Exception as e:
-                    logger.error(f"Failed to process match: {e}")
+                    logger.error(f"Failed to encrypt match: {e}")
                     continue
             
             return processed_text
             
         except Exception as e:
-            logger.error(f"Error during text processing: {e}")
-            # 发生错误时返回原始文本（避免阻断用户）
+            logger.error(f"Error during preprocessing: {e}")
             return text
     
-    def _process_match(self, match: MatchResult) -> Optional[str]:
-        """
-        处理单个匹配项
-        
-        Args:
-            match: 匹配结果
-            
-        Returns:
-            占位符字符串，失败返回None
-        """
+    def _encrypt_match(self, match: MatchResult) -> Optional[str]:
+        """加密单个匹配项，返回占位符"""
         # 加密敏感信息
         encrypted_blob = self._encryptor.encrypt(match.matched_text)
         
@@ -176,38 +173,126 @@ class SecurityAuditHook:
         )
         
         # 记录审计日志
-        self._auditor.log_detection(match, placeholder, actor="openclaw_hook")
+        self._auditor.log_detection(match, placeholder, actor="shumi_preprocess")
         self._auditor.log_encryption(
             placeholder,
             match.match_type,
             self._encryptor.get_key_fingerprint() or 'unknown',
-            actor="openclaw_hook"
+            actor="shumi_preprocess"
         )
-        self._auditor.log_placeholder_created(
-            placeholder,
-            match.match_type,
-            actor="openclaw_hook"
-        )
+        
+        logger.debug(f"Encrypted {match.match_type}: {match.matched_text[:10]}... -> {placeholder}")
         
         return placeholder
     
-    def get_stats(self) -> Dict[str, Any]:
-        """获取处理统计信息"""
-        stats = {
-            'initialized': self._initialized,
-            'detector_ready': self._detector is not None,
-            'encryptor_ready': self._encryptor is not None and self._encryptor.is_ready(),
-            'placeholder_manager_ready': self._placeholder_manager is not None,
-            'auditor_ready': self._auditor is not None,
-        }
+    # ==================== 后处理：AI响应 → 解密 → 呈现给用户 ====================
+    
+    def postprocess(self, text: str, context: Optional[Dict[str, Any]] = None) -> str:
+        """
+        【后处理】处理AI响应，解密占位符后呈现给用户
         
-        if self._placeholder_manager:
-            stats['placeholder_stats'] = self._placeholder_manager.get_stats()
+        Args:
+            text: AI响应文本（可能包含占位符）
+            context: 上下文信息
+            
+        Returns:
+            处理后的文本（占位符已解密为原始值）
+        """
+        if not self._initialized or not self._decryptor:
+            logger.warning("Decryptor not ready, skipping decryption")
+            return text
         
-        if self._auditor:
-            stats['audit_stats'] = self._auditor.get_stats()
+        try:
+            # 从文本中提取所有占位符
+            placeholders = self._placeholder_manager.extract_placeholders_from_text(text)
+            
+            if not placeholders:
+                return text
+            
+            logger.info(f"[Postprocess] Detected {len(placeholders)} placeholders to decrypt")
+            
+            # 解密并替换每个占位符
+            processed_text = text
+            for placeholder in placeholders:
+                try:
+                    decrypted_text = self._decrypt_placeholder(placeholder)
+                    if decrypted_text:
+                        processed_text = processed_text.replace(placeholder, decrypted_text)
+                except Exception as e:
+                    logger.error(f"Failed to decrypt placeholder {placeholder}: {e}")
+                    continue
+            
+            return processed_text
+            
+        except Exception as e:
+            logger.error(f"Error during postprocessing: {e}")
+            return text
+    
+    def _decrypt_placeholder(self, placeholder: str) -> Optional[str]:
+        """解密单个占位符，返回原始值"""
+        # 从占位符管理器获取加密数据
+        encrypted_blob = self._placeholder_manager.resolve_placeholder(placeholder)
         
-        return stats
+        if not encrypted_blob:
+            logger.warning(f"Placeholder not found: {placeholder}")
+            return None
+        
+        # 使用私钥解密
+        decrypted_text = self._decryptor.decrypt(encrypted_blob)
+        
+        # 记录审计日志
+        self._auditor.log_decryption(
+            placeholder,
+            actor="shumi_postprocess",
+            success=True
+        )
+        
+        logger.debug(f"Decrypted {placeholder} -> {decrypted_text[:10]}...")
+        
+        return decrypted_text
+    
+    # ==================== 工具调用处理 ====================
+    
+    def process_tool_call(self, tool_name: str, params: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        处理AI返回的工具调用参数
+        
+        如果工具调用参数中包含占位符，先解密再执行
+        
+        Args:
+            tool_name: 工具名称
+            params: 工具参数
+            
+        Returns:
+            处理后的参数（占位符已解密）
+        """
+        if not self._initialized or not self._decryptor:
+            return params
+        
+        # 递归处理参数字典中的所有字符串值
+        return self._decrypt_params_recursive(params)
+    
+    def _decrypt_params_recursive(self, obj: Any) -> Any:
+        """递归解密参数中的占位符"""
+        if isinstance(obj, dict):
+            return {k: self._decrypt_params_recursive(v) for k, v in obj.items()}
+        elif isinstance(obj, list):
+            return [self._decrypt_params_recursive(item) for item in obj]
+        elif isinstance(obj, str):
+            # 检查并解密字符串中的占位符
+            placeholders = self._placeholder_manager.extract_placeholders_from_text(obj)
+            for placeholder in placeholders:
+                try:
+                    decrypted = self._decrypt_placeholder(placeholder)
+                    if decrypted:
+                        obj = obj.replace(placeholder, decrypted)
+                except Exception as e:
+                    logger.error(f"Failed to decrypt in params: {e}")
+            return obj
+        else:
+            return obj
+    
+    # ==================== 状态检查 ====================
     
     def health_check(self) -> Dict[str, Any]:
         """健康检查"""
@@ -215,6 +300,7 @@ class SecurityAuditHook:
             'initialized': self._initialized,
             'detector': self._detector is not None,
             'encryptor': self._encryptor is not None and self._encryptor.is_ready(),
+            'decryptor': self._decryptor is not None,
             'placeholder_manager': self._placeholder_manager is not None,
             'auditor': self._auditor is not None,
         }
@@ -229,11 +315,11 @@ class SecurityAuditHook:
 
 
 # OpenClaw插件接口
-class SecurityAuditPlugin:
+class ShumiPlugin:
     """
     OpenClaw插件接口
     
-    实现了OpenClaw预处理器插件标准接口
+    实现了OpenClaw预处理器和后处理器插件标准接口
     """
     
     def __init__(self):
@@ -245,40 +331,39 @@ class SecurityAuditPlugin:
     
     def preprocess(self, text: str, context: Optional[Dict[str, Any]] = None) -> str:
         """
-        预处理消息
+        【预处理】处理用户输入
         
-        这是OpenClaw调用的主方法
+        这是OpenClaw调用的预处理方法
         """
         if self._hook is None:
             logger.error("Plugin not initialized")
             return text
         
-        return self._hook.process(text, context)
+        return self._hook.preprocess(text, context)
+    
+    def postprocess(self, text: str, context: Optional[Dict[str, Any]] = None) -> str:
+        """
+        【后处理】处理AI响应
+        
+        这是OpenClaw调用的后处理方法
+        """
+        if self._hook is None:
+            logger.error("Plugin not initialized")
+            return text
+        
+        return self._hook.postprocess(text, context)
+    
+    def process_tool_call(self, tool_name: str, params: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        处理工具调用
+        
+        在AI返回工具调用后、执行前调用
+        """
+        if self._hook is None:
+            return params
+        
+        return self._hook.process_tool_call(tool_name, params)
     
     def shutdown(self) -> None:
         """关闭插件"""
-        logger.info("SecurityAuditPlugin shutdown")
-
-
-# 便捷函数：创建默认Hook实例
-def create_hook(config_path: Optional[Path] = None) -> SecurityAuditHook:
-    """
-    创建安全审计Hook实例
-    
-    Args:
-        config_path: 配置文件路径
-        
-    Returns:
-        SecurityAuditHook实例
-    """
-    config = {}
-    
-    if config_path and config_path.exists():
-        try:
-            import yaml
-            with open(config_path, 'r', encoding='utf-8') as f:
-                config = yaml.safe_load(f)
-        except Exception as e:
-            logger.warning(f"Failed to load config: {e}")
-    
-    return SecurityAuditHook(config)
+        logger.info("ShumiPlugin shutdown")

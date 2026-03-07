@@ -43,12 +43,20 @@ shumi vault list
 
 ### 3. 配置OpenClaw集成
 
-在 `~/.openclaw/config.yaml` 中添加：
+编辑 `~/.openclaw/config.yaml`:
 
 ```yaml
+# 启用预处理（发送给AI前加密）和后处理（AI响应后解密）
 preprocessors:
   - shumi.plugins.openclaw_hook:SecurityAuditHook
+
+postprocessors:
+  - shumi.plugins.openclaw_hook:SecurityAuditHook
 ```
+
+**工作原理**：
+- **preprocess**: 用户输入 → 检测敏感信息 → 加密为占位符 → 发送给AI
+- **postprocess**: AI响应 → 检测占位符 → 解密为原始值 → 呈现给用户/执行工具
 
 ### 4. 配置工具调用拦截（可选）
 

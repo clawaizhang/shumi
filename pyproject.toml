@@ -47,6 +47,9 @@ shumi = "shumi.cli.main:cli"
 [project.entry-points."openclaw.preprocessors"]
 shumi = "shumi.plugins.openclaw_hook:SecurityAuditHook"
 
+[project.entry-points."openclaw.postprocessors"]
+shumi = "shumi.plugins.openclaw_hook:SecurityAuditHook"
+
 [tool.setuptools.packages.find]
 where = ["src"]
 
