@@ -1,0 +1,17 @@
+[Unit]
+Description=AI Security Audit Plugin
+Documentation=https://github.com/clawaizhang/openclaw-security-plugin
+After=network.target
+
+[Service]
+Type=simple
+User=%I
+Environment="HOME=/home/%I"
+Environment="PATH=/usr/local/bin:/usr/bin:/bin"
+Environment="PYTHONUNBUFFERED=1"
+ExecStart=/usr/local/bin/ai-security status
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

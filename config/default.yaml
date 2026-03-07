@@ -1,0 +1,31 @@
+# OpenClaw AI安全审计插件配置示例
+
+# SSH公钥路径（用于加密敏感信息）
+# 可以指定自定义路径，留空则自动查找 ~/.ssh/id_rsa.pub
+public_key_path: ~/.ssh/id_rsa.pub
+
+# 检测配置
+min_confidence: 0.5  # 最低检测置信度 (0-1)
+
+# 启用的检测类型（留空则启用所有）
+# enabled_types:
+#   - api_key
+#   - aws_key
+#   - password
+#   - token
+#   - jwt
+#   - private_key
+
+# 占位符存储路径
+placeholder_storage: ~/.openclaw/security/placeholders.json
+
+# 审计日志路径
+audit_log_path: ~/.openclaw/security/audit.log
+
+# 日志轮转配置
+max_log_size: 10485760  # 10MB
+max_backup_files: 5
+
+# 自定义正则模式（可选）
+# custom_patterns:
+#   my_custom_secret: 'custom-regex-pattern-here'
