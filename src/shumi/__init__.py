@@ -7,6 +7,7 @@ from shumi.core.ai_detector import AISensitiveDetector, MatchResult
 from shumi.core.encryptor import LocalEncryptor, LocalDecryptor, EncryptedBlob
 from shumi.core.placeholder import PlaceholderManager, is_placeholder
 from shumi.core.auditor import SecurityAuditor
+from shumi.core.notifier import ShumiNotifier
 
 __all__ = [
     'AISensitiveDetector',
@@ -17,4 +18,5 @@ __all__ = [
     'PlaceholderManager',
     'is_placeholder',
     'SecurityAuditor',
+    'ShumiNotifier',
 ]

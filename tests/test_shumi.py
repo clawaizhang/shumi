@@ -312,6 +312,72 @@ class TestChunkStrategies:
             Path(config_path).unlink()
 
 
+class TestShumiNotifier:
+    """通知器测试"""
+    
+    @pytest.fixture
+    def notifier(self):
+        from shumi.core.notifier import ShumiNotifier
+        return ShumiNotifier(level='brief')
+    
+    def test_on_encryption_logs_info(self, notifier, caplog):
+        """测试加密完成通知"""
+        with caplog.at_level('INFO'):
+            notifier.on_encryption(2, ['api_keys', 'passwords'])
+        
+        assert '枢密' in caplog.text
+        assert '加密' in caplog.text
+        assert '2' in caplog.text
+    
+    def test_on_encryption_silent_when_zero(self, notifier, caplog):
+        """测试无加密时静默"""
+        with caplog.at_level('INFO'):
+            notifier.on_encryption(0, [])
+        
+        # 无日志输出
+        assert '枢密' not in caplog.text
+    
+    def test_on_decryption_logs_info(self, notifier, caplog):
+        """测试解密完成通知"""
+        with caplog.at_level('INFO'):
+            notifier.on_decryption(3)
+        
+        assert '枢密' in caplog.text
+        assert '解密' in caplog.text
+        assert '3' in caplog.text
+    
+    def test_on_decryption_silent_when_zero(self, notifier, caplog):
+        """测试无解密时静默"""
+        with caplog.at_level('INFO'):
+            notifier.on_decryption(0)
+        
+        # 无日志输出
+        assert '枢密' not in caplog.text
+    
+    def test_silent_mode_no_logs(self, caplog):
+        """测试静默模式"""
+        from shumi.core.notifier import ShumiNotifier
+        notifier = ShumiNotifier(level='silent')
+        
+        with caplog.at_level('INFO'):
+            notifier.on_encryption(5, ['api_keys'])
+            notifier.on_decryption(3)
+        
+        # 静默模式下无任何日志
+        assert '枢密' not in caplog.text
+    
+    def test_detailed_mode_more_info(self, notifier, caplog):
+        """测试详细模式"""
+        from shumi.core.notifier import ShumiNotifier
+        notifier = ShumiNotifier(level='detailed')
+        
+        with caplog.at_level('INFO'):
+            notifier.on_encryption(2, ['api_keys', 'passwords'])
+        
+        # 详细模式包含类型信息
+        assert 'api_keys' in caplog.text or 'passwords' in caplog.text
+
+
 # 运行测试
 if __name__ == '__main__':
     pytest.main([__file__, '-v'])

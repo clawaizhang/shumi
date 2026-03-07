@@ -16,6 +16,7 @@ from shumi.core.ai_detector import AISensitiveDetector, MatchResult
 from shumi.core.encryptor import LocalEncryptor, LocalDecryptor
 from shumi.core.placeholder import PlaceholderManager, is_placeholder
 from shumi.core.auditor import SecurityAuditor, get_default_auditor
+from shumi.core.notifier import ShumiNotifier, create_notifier
 
 logger = logging.getLogger(__name__)
 
@@ -52,6 +53,7 @@ class SecurityAuditHook:
         self._decryptor: Optional[LocalDecryptor] = None
         self._placeholder_manager: Optional[PlaceholderManager] = None
         self._auditor: Optional[SecurityAuditor] = None
+        self._notifier: Optional[ShumiNotifier] = None
         
         self._init_components()
     
@@ -107,6 +109,9 @@ class SecurityAuditHook:
             # 初始化审计器
             self._auditor = get_default_auditor()
             
+            # 初始化通知器
+            self._notifier = create_notifier(self._config)
+            
             self._initialized = True
             logger.info("SecurityAuditHook initialized successfully")
             
@@ -147,12 +152,15 @@ class SecurityAuditHook:
                 ))
             
             if not all_matches:
+                # 无敏感信息，静默处理，不通知
                 return text
             
-            logger.info(f"[Preprocess] Detected {len(all_matches)} sensitive items to encrypt")
+            # 记录检测到的类型
+            detected_types = [m.match_type for m in all_matches]
             
             # 从后往前处理，避免位置偏移
             processed_text = text
+            encrypted_count = 0
             for match in sorted(all_matches, key=lambda m: m.start_pos, reverse=True):
                 try:
                     placeholder = self._encrypt_match(match)
@@ -162,9 +170,14 @@ class SecurityAuditHook:
                             placeholder +
                             processed_text[match.end_pos:]
                         )
+                        encrypted_count += 1
                 except Exception as e:
                     logger.error(f"Failed to encrypt match: {e}")
                     continue
+            
+            # 通知用户加密完成
+            if self._notifier and encrypted_count > 0:
+                self._notifier.on_encryption(encrypted_count, detected_types)
             
             return processed_text
             
@@ -222,20 +235,25 @@ class SecurityAuditHook:
             placeholders = self._placeholder_manager.extract_placeholders_from_text(text)
             
             if not placeholders:
+                # 无占位符，静默处理
                 return text
-            
-            logger.info(f"[Postprocess] Detected {len(placeholders)} placeholders to decrypt")
             
             # 解密并替换每个占位符
             processed_text = text
+            decrypted_count = 0
             for placeholder in placeholders:
                 try:
                     decrypted_text = self._decrypt_placeholder(placeholder)
                     if decrypted_text:
                         processed_text = processed_text.replace(placeholder, decrypted_text)
+                        decrypted_count += 1
                 except Exception as e:
                     logger.error(f"Failed to decrypt placeholder {placeholder}: {e}")
                     continue
+            
+            # 通知用户解密完成
+            if self._notifier and decrypted_count > 0:
+                self._notifier.on_decryption(decrypted_count, len(placeholders))
             
             return processed_text
             
