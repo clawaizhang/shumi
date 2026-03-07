@@ -224,9 +224,36 @@ echo "  ✓ OpenClaw配置已更新"
 echo ""
 
 # ============================================
-# 步骤7: 验证安装
+# 步骤7: 启动枢密服务（关键！）
 # ============================================
-echo -e "${YELLOW}[7/7] 验证安装...${NC}"
+echo -e "${YELLOW}[7/8] 启动枢密服务...${NC}"
+
+# 复制启动脚本到PATH
+chmod +x "$INSTALL_DIR/shumi-service.sh"
+ln -sf "$INSTALL_DIR/shumi-service.sh" /usr/local/bin/shumi-service 2>/dev/null || true
+
+# 启动服务（后台预加载模型）
+nohup python3 -c "
+import sys
+sys.path.insert(0, '$INSTALL_DIR/src')
+import os
+os.environ['HF_ENDPOINT'] = 'https://hf-mirror.com'
+
+from shumi.core.ai_detector import SensitiveDetector
+print('[枢密] 正在预加载模型进入待命状态...')
+detector = SensitiveDetector()
+print('[枢密] 模型已加载，服务就绪')
+" > "$HOME/.shumi/logs/shumi.log" 2>&1 &
+
+SHUMI_PID=$!
+echo $SHUMI_PID > "$HOME/.shumi/logs/shumi.pid"
+echo "  ✓ 枢密服务已启动 (PID: $SHUMI_PID)"
+echo ""
+
+# ============================================
+# 步骤8: 验证安装
+# ============================================
+echo -e "${YELLOW}[8/8] 验证安装...${NC}"
 
 python3 << 'EOF'
 import sys
@@ -264,20 +291,24 @@ echo -e "${GREEN}================================${NC}"
 echo -e "${GREEN}  安装完成！${NC}"
 echo -e "${GREEN}================================${NC}"
 echo ""
+echo "✅ 枢密服务状态:"
+shumi-service status
+echo ""
 echo "使用说明:"
-echo "  1. 枢密已自动集成到OpenClaw"
+echo "  1. 枢密服务已在后台运行，模型已加载"
 echo "  2. 发送给AI的消息会自动检测并加密敏感信息"
 echo "  3. AI响应中的占位符会自动解密"
 echo ""
+echo "服务管理:"
+echo "  shumi-service start   # 启动服务"
+echo "  shumi-service stop    # 停止服务"
+echo "  shumi-service status  # 查看状态"
+echo ""
 echo "配置文件: $CONFIG_FILE"
-echo "日志位置: ~/.shumi/logs/"
+echo "日志位置: ~/.shumi/logs/shumi.log"
 echo "模型缓存: ~/.cache/huggingface/"
 echo ""
-echo "通知级别设置:"
-echo "  - silent: 完全静默"
-echo "  - brief: 简略通知（默认）"
-echo "  - detailed: 详细通知"
-echo ""
 echo "测试命令:"
+echo "  shumi-service status"
 echo "  python3 -c \"from shumi.core.notifier import ShumiNotifier; n=ShumiNotifier('detailed'); n.on_encryption(1,['api_key'])\""
 echo ""
