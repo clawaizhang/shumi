@@ -12,23 +12,39 @@ import logging
 
 logger = logging.getLogger('shumi')
 
+# 单例实例缓存
+_detector_instance = None
+
 
 class SensitiveDetector:
     """
-    基于ONNX的敏感信息检测器
+    基于ONNX的敏感信息检测器 (单例模式)
     
     特点:
-    - 3秒快速加载（vs PyTorch的30-60秒）
+    - 0.16秒快速加载
     - 纯ONNX推理，无PyTorch依赖
+    - 单例模式确保只加载一次模型
     """
+    
+    def __new__(cls, model_path: Optional[str] = None):
+        """单例模式：确保只有一个实例"""
+        global _detector_instance
+        if _detector_instance is None:
+            _detector_instance = super().__new__(cls)
+            _detector_instance._initialized = False
+        return _detector_instance
     
     def __init__(self, model_path: Optional[str] = None):
         """
-        初始化检测器
+        初始化检测器 (单例模式，只初始化一次)
         
         Args:
             model_path: ONNX模型路径，默认使用预编译模型
         """
+        # 防止重复初始化
+        if self._initialized:
+            return
+        
         if model_path is None:
             # 默认路径
             model_path = os.path.expanduser("~/.shumi/models/model.onnx")
@@ -37,6 +53,7 @@ class SensitiveDetector:
         self._session = None
         self._tokenizer = None
         self._load_model()
+        self._initialized = True
     
     def _load_model(self):
         """加载ONNX模型"""
