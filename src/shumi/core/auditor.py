@@ -13,7 +13,17 @@ from typing import Dict, Any, Optional, List
 from pathlib import Path
 import threading
 
-from shumi.core.detector import MatchResult
+# from shumi.core.detector import MatchResult
+from dataclasses import dataclass
+
+@dataclass
+class MatchResult:
+    """临时占位符"""
+    category: str
+    text: str
+    confidence: float
+    start: int = 0
+    end: int = 0
 
 logger = logging.getLogger(__name__)
 

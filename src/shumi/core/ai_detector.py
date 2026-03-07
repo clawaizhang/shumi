@@ -43,14 +43,17 @@ class SensitiveDetector:
         import onnxruntime as ort
         from transformers import AutoTokenizer
         
-        if not os.path.exists(self.model_path):
-            raise FileNotFoundError(f"ONNX模型不存在: {self.model_path}")
+        # 展开用户目录
+        model_path = os.path.expanduser(self.model_path)
+        
+        if not os.path.exists(model_path):
+            raise FileNotFoundError(f"ONNX模型不存在: {model_path}")
         
         logger.info("[枢密] 加载ONNX模型...")
         
         # 加载ONNX运行时
         self._session = ort.InferenceSession(
-            self.model_path,
+            model_path,
             providers=['CPUExecutionProvider']
         )
         
