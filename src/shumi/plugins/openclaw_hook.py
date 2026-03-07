@@ -12,7 +12,7 @@ import re
 from typing import Optional, Dict, Any, List
 from pathlib import Path
 
-from shumi.core.ai_detector import AISensitiveDetector, MatchResult
+from shumi.core.ai_detector import SensitiveDetector
 from shumi.core.encryptor import LocalEncryptor, LocalDecryptor
 from shumi.core.placeholder import PlaceholderManager, is_placeholder
 from shumi.core.auditor import SecurityAuditor, get_default_auditor
@@ -48,7 +48,7 @@ class SecurityAuditHook:
         self._initialized = False
         
         # 组件
-        self._ai_detector: Optional[AISensitiveDetector] = None
+        self._detector: Optional[SensitiveDetector] = None
         self._encryptor: Optional[LocalEncryptor] = None
         self._decryptor: Optional[LocalDecryptor] = None
         self._placeholder_manager: Optional[PlaceholderManager] = None
@@ -60,15 +60,13 @@ class SecurityAuditHook:
     def _init_components(self) -> None:
         """初始化组件"""
         try:
-            # 初始化AI检测器（基于Embedding模型）
-            chunk_strategy_path = self._config.get('chunk_strategy_path')
-            if not chunk_strategy_path:
-                # 使用默认路径
-                import shumi
-                chunk_strategy_path = Path(shumi.__file__).parent / 'data' / 'chunk_strategy.json'
+            # 初始化AI检测器（基于ONNX模型）
+            model_path = self._config.get('model_path')
+            if not model_path:
+                model_path = Path.home() / '.shumi' / 'models' / 'model.onnx'
             
-            self._ai_detector = AISensitiveDetector(chunk_strategy_path)
-            logger.info(f"AI detector initialized with strategy: {chunk_strategy_path}")
+            self._detector = SensitiveDetector(str(model_path))
+            logger.info(f"AI detector initialized with model: {model_path}")
             
             # 初始化加密器（公钥加密，用于发送给AI前加密）
             public_key_path = self._config.get('public_key_path')
@@ -138,37 +136,26 @@ class SecurityAuditHook:
         
         try:
             # AI检测器检测敏感信息
-            ai_matches = self._ai_detector.detect(text)
+            matches = self._detector.detect(text)
             
-            # 转换为MatchResult格式
-            all_matches = []
-            for ai_match in ai_matches:
-                all_matches.append(MatchResult(
-                    matched_text=ai_match['text'],
-                    match_type=ai_match['category'],
-                    start_pos=ai_match['start'],
-                    end_pos=ai_match['end'],
-                    confidence=ai_match['confidence']
-                ))
-            
-            if not all_matches:
+            if not matches:
                 # 无敏感信息，静默处理，不通知
                 return text
             
             # 记录检测到的类型
-            detected_types = [m.match_type for m in all_matches]
+            detected_types = [m['category'] for m in matches]
             
             # 从后往前处理，避免位置偏移
             processed_text = text
             encrypted_count = 0
-            for match in sorted(all_matches, key=lambda m: m.start_pos, reverse=True):
+            for match in sorted(matches, key=lambda m: m['start'], reverse=True):
                 try:
                     placeholder = self._encrypt_match(match)
                     if placeholder:
                         processed_text = (
-                            processed_text[:match.start_pos] +
+                            processed_text[:match['start']] +
                             placeholder +
-                            processed_text[match.end_pos:]
+                            processed_text[:match['end']]
                         )
                         encrypted_count += 1
                 except Exception as e:
@@ -185,18 +172,19 @@ class SecurityAuditHook:
             logger.error(f"Error during preprocessing: {e}")
             return text
     
-    def _encrypt_match(self, match: MatchResult) -> Optional[str]:
+    def _encrypt_match(self, match: Dict[str, Any]) -> Optional[str]:
         """加密单个匹配项，返回占位符"""
         # 加密敏感信息
-        encrypted_blob = self._encryptor.encrypt(match.matched_text)
+        matched_text = match['text']
+        encrypted_blob = self._encryptor.encrypt(matched_text)
         
         # 创建占位符
         placeholder = self._placeholder_manager.create_placeholder(
             encrypted_blob,
-            match.match_type,
+            match['category'],
             metadata={
-                'confidence': match.confidence,
-                'original_length': len(match.matched_text)
+                'confidence': match['confidence'],
+                'original_length': len(matched_text)
             }
         )
         
@@ -204,12 +192,12 @@ class SecurityAuditHook:
         self._auditor.log_detection(match, placeholder, actor="shumi_preprocess")
         self._auditor.log_encryption(
             placeholder,
-            match.match_type,
+            match['category'],
             self._encryptor.get_key_fingerprint() or 'unknown',
             actor="shumi_preprocess"
         )
         
-        logger.debug(f"Encrypted {match.match_type}: {match.matched_text[:10]}... -> {placeholder}")
+        logger.debug(f"Encrypted {match['category']}: {matched_text[:10]}... -> {placeholder}")
         
         return placeholder
     
