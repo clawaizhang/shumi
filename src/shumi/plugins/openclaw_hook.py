@@ -7,10 +7,10 @@ import logging
 from typing import Optional, Dict, Any, List
 from pathlib import Path
 
-from ai_security_audit.core.detector import SensitiveInfoDetector, MatchResult
-from ai_security_audit.core.encryptor import LocalEncryptor
-from ai_security_audit.core.placeholder import PlaceholderManager
-from ai_security_audit.core.auditor import SecurityAuditor, get_default_auditor
+from shumi.core.detector import SensitiveInfoDetector, MatchResult
+from shumi.core.encryptor import LocalEncryptor
+from shumi.core.placeholder import PlaceholderManager
+from shumi.core.auditor import SecurityAuditor, get_default_auditor
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +28,7 @@ class SecurityAuditHook:
     使用方式：
     在OpenClaw配置中添加：
     preprocessors:
-      - ai_security_audit.plugins.openclaw_hook:SecurityAuditHook
+      - shumi.plugins.openclaw_hook:SecurityAuditHook
     """
     
     def __init__(self, config: Optional[Dict[str, Any]] = None):

@@ -10,10 +10,10 @@ from dataclasses import dataclass
 from enum import Enum
 import logging
 
-from ai_security_audit.core.detector import SensitiveInfoDetector, MatchResult
-from ai_security_audit.core.encryptor import LocalEncryptor
-from ai_security_audit.core.placeholder import PlaceholderManager
-from ai_security_audit.core.auditor import SecurityAuditor
+from shumi.core.detector import SensitiveInfoDetector, MatchResult
+from shumi.core.encryptor import LocalEncryptor
+from shumi.core.placeholder import PlaceholderManager
+from shumi.core.auditor import SecurityAuditor
 
 logger = logging.getLogger(__name__)
 

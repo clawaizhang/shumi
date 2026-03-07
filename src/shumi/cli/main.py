@@ -17,10 +17,10 @@ from rich.text import Text
 # 添加项目路径
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from ai_security_audit.core.detector import SensitiveInfoDetector
-from ai_security_audit.core.encryptor import LocalEncryptor, LocalDecryptor
-from ai_security_audit.core.placeholder import PlaceholderManager, is_placeholder
-from ai_security_audit.core.auditor import SecurityAuditor
+from shumi.core.detector import SensitiveInfoDetector
+from shumi.core.encryptor import LocalEncryptor, LocalDecryptor
+from shumi.core.placeholder import PlaceholderManager, is_placeholder
+from shumi.core.auditor import SecurityAuditor
 
 console = Console()
 
@@ -94,7 +94,7 @@ def init_config(public_key):
     console.print("\n[bold]下一步:[/bold]")
     console.print("1. 在 ~/.openclaw/config.yaml 中添加:")
     console.print("   preprocessors:")
-    console.print("     - ai_security_audit.plugins.openclaw_hook:SecurityAuditHook")
+    console.print("     - shumi.plugins.openclaw_hook:SecurityAuditHook")
 
 
 @config.command('set-public-key')
@@ -129,7 +129,7 @@ def set_public_key(key_path):
                 backend=default_backend()
             )
         
-        from ai_security_audit.core.encryptor import LocalEncryptor
+        from shumi.core.encryptor import LocalEncryptor
         encryptor = LocalEncryptor(dest)
         fingerprint = encryptor.get_key_fingerprint()
         console.print(f"[blue]ℹ[/blue] 密钥指纹: {fingerprint}")
@@ -419,7 +419,7 @@ def verify_integrity():
 @cli.command('status')
 def show_status():
     """显示插件状态"""
-    from ai_security_audit.plugins.openclaw_hook import SecurityAuditHook
+    from shumi.plugins.openclaw_hook import SecurityAuditHook
     
     hook = SecurityAuditHook()
     health = hook.health_check()

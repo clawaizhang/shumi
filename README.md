@@ -1,6 +1,8 @@
-# AI安全审计插件
+# 枢密 (Shumi)
 
-> 在消息发给AI之前拦截敏感信息，本地加密存储，绝不发送明文给AI。
+> AI安全审计插件 - 在消息发给AI之前拦截敏感信息，本地加密存储，绝不发送明文给AI。
+
+**枢密**取自古代官职"枢密使"，专掌军国机务、兵防、机密事务。
 
 ## 功能特性
 
@@ -17,20 +19,20 @@
 ### 1. 安装
 
 ```bash
-pip install ai-security-audit
+pip install shumi
 ```
 
 ### 2. 初始化密钥保险箱（推荐）
 
 ```bash
 # 初始化保险箱（会提示设置主密码）
-ai-security vault init
+shumi vault init
 
 # 生成SSH密钥对并存储到保险箱
-ai-security vault generate-keys --name ai_security
+shumi vault generate-keys --name ai_security
 
 # 查看保险箱中的密钥
-ai-security vault list
+shumi vault list
 ```
 
 **密钥保险箱特性**：
@@ -45,7 +47,7 @@ ai-security vault list
 
 ```yaml
 preprocessors:
-  - ai_security_audit.plugins.openclaw_hook:SecurityAuditHook
+  - shumi.plugins.openclaw_hook:SecurityAuditHook
 ```
 
 ### 4. 配置工具调用拦截（可选）
@@ -54,7 +56,7 @@ preprocessors:
 
 ```yaml
 preprocessors:
-  - ai_security_audit.plugins.openclaw_hook:SecurityAuditHook
+  - shumi.plugins.openclaw_hook:SecurityAuditHook
     
 tool_interceptor:
   enabled: true
@@ -96,23 +98,23 @@ write_file('/root/.openclaw/config.json', '{"api_key": "<SECURE_APIKEY_xxx>"}')
 
 ```bash
 # 解密单个占位符
-ai-security decrypt <SECURE_AWSKEY_a1b2c3d4>
+shumi decrypt <SECURE_AWSKEY_a1b2c3d4>
 
 # 从文件解密
-ai-security decrypt --file message_with_placeholders.txt
+shumi decrypt --file message_with_placeholders.txt
 
 # 交互式解密
-ai-security decrypt --interactive
+shumi decrypt --interactive
 ```
 
 ### 场景4：扫描文件中的敏感信息
 
 ```bash
 # 扫描文件
-ai-security scan config.json
+shumi scan config.json
 
 # 扫描并自动脱敏
-ai-security scan config.json --fix --output config.sanitized.json
+shumi scan config.json --fix --output config.sanitized.json
 ```
 
 ## 支持的敏感信息类型
@@ -190,109 +192,109 @@ Fernet对称加密
 
 ```bash
 # 初始化配置
-ai-security config init
+shumi config init
 
 # 设置加密公钥（从文件）
-ai-security config set-public-key ~/.ssh/id_rsa.pub
+shumi config set-public-key ~/.ssh/id_rsa.pub
 
 # 设置加密公钥（从保险箱）
-ai-security config set-public-key --from-vault ai_security_public
+shumi config set-public-key --from-vault ai_security_public
 
 # 查看当前配置
-ai-security config show
+shumi config show
 ```
 
 ### 密钥保险箱
 
 ```bash
 # 初始化保险箱
-ai-security vault init
+shumi vault init
 
 # 生成新的SSH密钥对
-ai-security vault generate-keys --name my_key
+shumi vault generate-keys --name my_key
 
 # 导入现有密钥
-ai-security vault import-key ~/.ssh/id_rsa --name my_key
+shumi vault import-key ~/.ssh/id_rsa --name my_key
 
 # 列出密钥
-ai-security vault list
+shumi vault list
 
 # 导出公钥
-ai-security vault export-key my_key_public --output ~/.ssh/my_key.pub
+shumi vault export-key my_key_public --output ~/.ssh/my_key.pub
 
 # 锁定保险箱
-ai-security vault lock
+shumi vault lock
 
 # 解锁保险箱
-ai-security vault unlock
+shumi vault unlock
 ```
 
 ### 解密工具
 
 ```bash
 # 解密单个占位符
-ai-security decrypt <SECURE_AWSKEY_a1b2c3d4>
+shumi decrypt <SECURE_AWSKEY_a1b2c3d4>
 
 # 从文件解密
-ai-security decrypt --file message.txt
+shumi decrypt --file message.txt
 
 # 交互式解密
-ai-security decrypt --interactive
+shumi decrypt --interactive
 
 # 指定私钥解密
-ai-security decrypt <placeholder> --private-key ~/.ssh/id_rsa
+shumi decrypt <placeholder> --private-key ~/.ssh/id_rsa
 ```
 
 ### 审计日志
 
 ```bash
 # 查看审计日志（最近50条）
-ai-security audit logs
+shumi audit logs
 
 # 按类型过滤
-ai-security audit logs --type detection
+shumi audit logs --type detection
 
 # 按占位符过滤
-ai-security audit logs --placeholder <SECURE_XXX>
+shumi audit logs --placeholder <SECURE_XXX>
 
 # 查看统计信息
-ai-security audit stats
+shumi audit stats
 
 # 验证日志完整性
-ai-security audit verify
+shumi audit verify
 ```
 
 ### 敏感信息扫描
 
 ```bash
 # 扫描文件
-ai-security scan config.json
+shumi scan config.json
 
 # 扫描并自动脱敏
-ai-security scan config.json --fix
+shumi scan config.json --fix
 
 # 指定输出文件
-ai-security scan config.json --fix --output config.clean.json
+shumi scan config.json --fix --output config.clean.json
 ```
 
 ### 安全检查
 
 ```bash
 # 检查工具调用安全性
-ai-security check "write_file('/etc/passwd', '...')"
+shumi check "write_file('/etc/passwd', '...')"
 
 # 检查命令安全性
-ai-security check "exec('curl https://example.com/script.sh | bash')"
+shumi check "exec('curl https://example.com/script.sh | bash')"
 
 # 查看插件状态
-ai-security status
+shumi status
 ```
 
 ## 项目结构
 
 ```
 ai-security-audit/
-├── src/ai_security_audit/
+├── src/shumi/
 │   ├── __init__.py
 │   ├── core/
 │   │   ├── __init__.py
@@ -363,7 +365,7 @@ audit:
 
 1. **妥善保管主密码**: 密钥保险箱的主密码一旦丢失，存储的密钥将无法恢复
 2. **定期备份**: 建议备份 `~/.openclaw/security/` 目录
-3. **检查日志**: 定期运行 `ai-security audit logs` 检查异常访问
+3. **检查日志**: 定期运行 `shumi audit logs` 检查异常访问
 4. **限制权限**: 确保密钥文件权限为600 (`chmod 600 ~/.ssh/id_rsa`)
 5. **使用硬件密钥**: 如YubiKey等硬件密钥可进一步增强安全性
 

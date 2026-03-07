@@ -13,7 +13,7 @@ from pathlib import Path
 import threading
 import logging
 
-from ai_security_audit.core.encryptor import EncryptedBlob
+from shumi.core.encryptor import EncryptedBlob
 
 logger = logging.getLogger(__name__)
 

@@ -13,7 +13,7 @@ from typing import Dict, Any, Optional, List
 from pathlib import Path
 import threading
 
-from ai_security_audit.core.detector import MatchResult
+from shumi.core.detector import MatchResult
 
 logger = logging.getLogger(__name__)
 
