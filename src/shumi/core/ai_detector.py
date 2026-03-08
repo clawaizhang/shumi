@@ -145,13 +145,13 @@ class SensitiveDetector:
         
         return embedding
     
-    def detect(self, text: str, threshold: float = 0.65) -> List[Dict[str, Any]]:
+    def detect(self, text: str, threshold: float = 0.55) -> List[Dict[str, Any]]:
         """
         检测文本中的敏感信息（真正的相似度检测）
         
         Args:
             text: 输入文本
-            threshold: 相似度阈值（默认0.65）
+            threshold: 相似度阈值（默认0.55）
             
         Returns:
             检测结果列表
