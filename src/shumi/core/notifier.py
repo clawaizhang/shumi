@@ -34,7 +34,7 @@ class ShumiNotifier:
     
     def on_encryption(self, count: int, types: List[str]):
         """
-        加密完成通知
+        加密完成通知 - 简洁模式只输出一条
         
         Args:
             count: 加密的敏感信息数量
@@ -47,7 +47,17 @@ class ShumiNotifier:
             return
         
         if self.level == self.LEVEL_BRIEF:
-            logger.info(f"🔒 枢密：已加密 {count} 个敏感信息")
+            # 简洁通知：只输出检测到了哪些类型
+            unique_types = list(set(types))
+            type_names = {
+                'api_key': 'API密钥',
+                'password': '密码',
+                'token': '令牌',
+                'aws_key': 'AWS密钥',
+                'private_key': '私钥'
+            }
+            type_str = '、'.join([type_names.get(t, t) for t in unique_types])
+            logger.info(f"🔒 枢密：检测到{type_str}，已加密保护")
         
         elif self.level == self.LEVEL_DETAILED:
             unique_types = list(set(types))
@@ -56,7 +66,7 @@ class ShumiNotifier:
     
     def on_decryption(self, count: int, placeholder_count: int = 0):
         """
-        解密完成通知
+        解密完成通知 - 简洁模式下静默
         
         Args:
             count: 解密的占位符数量
@@ -69,7 +79,8 @@ class ShumiNotifier:
             return
         
         if self.level == self.LEVEL_BRIEF:
-            logger.info(f"🔓 枢密：已解密 {count} 个占位符")
+            # 简洁模式：解密过程静默，不打扰用户
+            pass
         
         elif self.level == self.LEVEL_DETAILED:
             if placeholder_count > count:
