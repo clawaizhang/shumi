@@ -48,7 +48,10 @@ class SensitiveDetector:
         
         # 默认路径
         self.models_dir = Path(os.path.expanduser("~/.shumi/models"))
-        self.model_path = model_path or self.models_dir / "model.onnx"
+        if model_path:
+            self.model_path = Path(model_path).expanduser()
+        else:
+            self.model_path = self.models_dir / "model.onnx"
         self.centers_path = self.models_dir / "sensitive_centers.json"
         
         self._session = None
