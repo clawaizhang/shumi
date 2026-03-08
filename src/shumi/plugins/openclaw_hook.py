@@ -67,8 +67,21 @@ class SecurityAuditHook:
         try:
             # 初始化AI检测器（基于ONNX模型）
             model_path = self._config.get('model_path')
-            if not model_path:
+            if model_path:
+                model_path = Path(model_path).expanduser()
+            else:
                 model_path = Path.home() / '.shumi' / 'models' / 'model.onnx'
+            
+            # 确保模型文件存在
+            if not model_path.exists():
+                logger.error(f"Model file not found: {model_path}")
+                # 尝试备用路径
+                alt_path = Path.home() / '.shumi' / 'models' / 'model.onnx'
+                if alt_path.exists():
+                    model_path = alt_path
+                    logger.info(f"Using alternate model path: {model_path}")
+                else:
+                    raise FileNotFoundError(f"ONNX model not found at {model_path}")
             
             self._detector = SensitiveDetector(str(model_path))
             logger.info(f"AI detector initialized with model: {model_path}")
@@ -184,7 +197,7 @@ class SecurityAuditHook:
                         processed_text = (
                             processed_text[:match['start']] +
                             placeholder +
-                            processed_text[:match['end']]
+                            processed_text[match['end']:]  # 修复：这里是 match['end']:
                         )
                         encrypted_count += 1
                 except Exception as e:
@@ -244,13 +257,30 @@ class SecurityAuditHook:
         )
         
         # 记录审计日志
-        self._auditor.log_detection(match, placeholder, actor="shumi_preprocess")
-        self._auditor.log_encryption(
-            placeholder,
-            match['category'],
-            self._encryptor.get_key_fingerprint() or 'unknown',
-            actor="shumi_preprocess"
-        )
+        try:
+            # 创建临时 MatchResult 对象用于审计
+            from shumi.core.auditor import MatchResult
+            match_result = MatchResult(
+                matched_text=match['text'],
+                match_type=match['category'],
+                confidence=match['confidence'],
+                start_pos=match['start'],
+                end_pos=match['end'],
+                metadata={'source': 'ai_detector'}
+            )
+            self._auditor.log_detection(match_result, placeholder, actor="shumi_preprocess")
+        except Exception as e:
+            logger.debug(f"Failed to log detection: {e}")
+        
+        try:
+            self._auditor.log_encryption(
+                placeholder,
+                match['category'],
+                self._encryptor.get_key_fingerprint() or 'unknown',
+                actor="shumi_preprocess"
+            )
+        except Exception as e:
+            logger.debug(f"Failed to log encryption: {e}")
         
         logger.debug(f"Encrypted {match['category']}: {matched_text[:10]}... -> {placeholder}")
         

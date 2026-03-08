@@ -77,6 +77,26 @@ pip3 install -e "$INSTALL_DIR" --quiet --break-system-packages 2>/dev/null || \
 pip3 install -e "$INSTALL_DIR" --quiet 2>/dev/null
 echo "  ✓ 安装完成"
 
+# 生成加密密钥对
+echo ""
+echo -e "${YELLOW}生成加密密钥...${NC}"
+KEY_DIR="${HOME}/.openclaw/security/keys"
+mkdir -p "$KEY_DIR"
+
+if [ -f "$KEY_DIR/shumi_rsa" ] && [ -f "$KEY_DIR/shumi_rsa.pub" ]; then
+    echo "  ✓ 密钥对已存在"
+else
+    echo "  生成RSA密钥对..."
+    ssh-keygen -t rsa -b 4096 -f "$KEY_DIR/shumi_rsa" -N "" -C "shumi@openclaw" 2>/dev/null || {
+        echo "  ⚠️  使用 openssl 生成密钥..."
+        openssl genrsa -out "$KEY_DIR/shumi_rsa" 4096 2>/dev/null
+        openssl rsa -in "$KEY_DIR/shumi_rsa" -pubout -out "$KEY_DIR/shumi_rsa.pub" 2>/dev/null
+    }
+    chmod 600 "$KEY_DIR/shumi_rsa"
+    chmod 644 "$KEY_DIR/shumi_rsa.pub"
+    echo "  ✓ 密钥对生成完成"
+fi
+
 # 配置OpenClaw
 echo ""
 echo -e "${YELLOW}配置OpenClaw...${NC}"
@@ -102,6 +122,8 @@ postprocessors:
 shumi:
   min_confidence: 0.55
   model_path: ~/.shumi/models/model.onnx
+  public_key_path: ~/.openclaw/security/keys/shumi_rsa.pub
+  private_key_path: ~/.openclaw/security/keys/shumi_rsa
 EOF
         echo "  ✓ 配置已添加"
     fi
@@ -120,12 +142,18 @@ postprocessors:
 shumi:
   min_confidence: 0.55
   model_path: ~/.shumi/models/model.onnx
+  public_key_path: ~/.openclaw/security/keys/shumi_rsa.pub
+  private_key_path: ~/.openclaw/security/keys/shumi_rsa
 
 logging:
   level: INFO
 EOF
     echo "  ✓ 新配置已创建"
 fi
+
+# 设置密钥权限
+chmod 700 "${HOME}/.openclaw/security/keys"
+chmod 600 "${HOME}/.openclaw/security/keys/shumi_rsa" 2>/dev/null || true
 
 # 创建安全目录和事件目录
 mkdir -p "${HOME}/.openclaw/security/events"
