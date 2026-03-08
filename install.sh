@@ -100,7 +100,7 @@ preprocessors:
 postprocessors:
   - shumi.plugins.openclaw_hook:SecurityAuditHook
 shumi:
-  min_confidence: 0.65
+  min_confidence: 0.55
   model_path: ~/.shumi/models/model.onnx
 EOF
         echo "  ✓ 配置已添加"
@@ -118,7 +118,7 @@ postprocessors:
   - shumi.plugins.openclaw_hook:SecurityAuditHook
 
 shumi:
-  min_confidence: 0.65
+  min_confidence: 0.55
   model_path: ~/.shumi/models/model.onnx
 
 logging:
