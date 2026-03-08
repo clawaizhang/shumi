@@ -37,6 +37,9 @@ class SecurityAuditHook:
       - shumi.plugins.openclaw_hook:SecurityAuditHook
     """
     
+    # 类级别变量，用于存储待发送的通知
+    _pending_notifications: List[str] = []
+    
     def __init__(self, config: Optional[Dict[str, Any]] = None):
         """
         初始化Hook
@@ -107,8 +110,11 @@ class SecurityAuditHook:
             # 初始化审计器
             self._auditor = get_default_auditor()
             
-            # 初始化通知器
-            self._notifier = create_notifier(self._config)
+            # 初始化通知器（使用独立消息回调）
+            self._notifier = create_notifier(
+                self._config,
+                message_callback=self._add_notification
+            )
             
             self._initialized = True
             logger.info("SecurityAuditHook initialized successfully")
@@ -116,6 +122,18 @@ class SecurityAuditHook:
         except Exception as e:
             logger.error(f"Failed to initialize SecurityAuditHook: {e}")
             self._initialized = False
+    
+    def _add_notification(self, message: str):
+        """添加待发送的通知"""
+        SecurityAuditHook._pending_notifications.append(message)
+        logger.debug(f"Notification queued: {message}")
+    
+    @classmethod
+    def get_and_clear_notifications(cls) -> List[str]:
+        """获取并清空待发送的通知列表"""
+        notifications = cls._pending_notifications.copy()
+        cls._pending_notifications.clear()
+        return notifications
     
     # ==================== 预处理：用户输入 → 加密 → 发送给AI ====================
     

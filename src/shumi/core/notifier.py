@@ -1,9 +1,9 @@
 """
-通知器 - 使用 OpenClaw 统一日志机制
+通知器 - 支持独立消息发送
 """
 
 import logging
-from typing import List, Optional
+from typing import List, Optional, Callable
 
 logger = logging.getLogger('shumi')
 
@@ -14,8 +14,8 @@ class ShumiNotifier:
     
     设计原则：
     1. 无敏感信息时完全静默
-    2. 使用 OpenClaw 标准日志机制
-    3. 不自建通知渠道（飞书/邮件等）
+    2. 支持独立消息发送（不混杂在正常回复中）
+    3. 简洁通知，一条消息说明检测结果
     """
     
     # 通知级别
@@ -23,14 +23,32 @@ class ShumiNotifier:
     LEVEL_BRIEF = 'brief'        # 简略通知（默认）
     LEVEL_DETAILED = 'detailed'  # 详细通知
     
-    def __init__(self, level: str = 'brief'):
+    def __init__(self, level: str = 'brief', message_callback: Optional[Callable] = None):
         """
         初始化通知器
         
         Args:
             level: 通知级别 - silent/brief/detailed
+            message_callback: 消息发送回调函数，用于发送独立消息
         """
         self.level = level
+        self._message_callback = message_callback
+    
+    def set_message_callback(self, callback: Callable):
+        """设置消息发送回调"""
+        self._message_callback = callback
+    
+    def _send_notification(self, message: str):
+        """发送通知 - 优先使用独立消息，否则用日志"""
+        if self._message_callback:
+            try:
+                self._message_callback(message)
+                return
+            except Exception as e:
+                logger.error(f"发送独立消息失败: {e}")
+        
+        # 降级到日志
+        logger.info(message)
     
     def on_encryption(self, count: int, types: List[str]):
         """
@@ -57,12 +75,12 @@ class ShumiNotifier:
                 'private_key': '私钥'
             }
             type_str = '、'.join([type_names.get(t, t) for t in unique_types])
-            logger.info(f"🔒 枢密：检测到{type_str}，已加密保护")
+            self._send_notification(f"🔒 枢密：检测到{type_str}，已加密保护")
         
         elif self.level == self.LEVEL_DETAILED:
             unique_types = list(set(types))
             type_str = ', '.join(unique_types)
-            logger.info(f"🔒 枢密：检测到 {count} 个敏感信息（{type_str}），已加密保护")
+            self._send_notification(f"🔒 枢密：检测到 {count} 个敏感信息（{type_str}），已加密保护")
     
     def on_decryption(self, count: int, placeholder_count: int = 0):
         """
@@ -84,9 +102,9 @@ class ShumiNotifier:
         
         elif self.level == self.LEVEL_DETAILED:
             if placeholder_count > count:
-                logger.info(f"🔓 枢密：已解密 {count}/{placeholder_count} 个占位符（部分可能无法解密）")
+                self._send_notification(f"🔓 枢密：已解密 {count}/{placeholder_count} 个占位符（部分可能无法解密）")
             else:
-                logger.info(f"🔓 枢密：AI响应中的 {count} 个占位符已解密")
+                self._send_notification(f"🔓 枢密：AI响应中的 {count} 个占位符已解密")
     
     def on_detection_failed(self, error: str):
         """
@@ -96,7 +114,7 @@ class ShumiNotifier:
             error: 错误信息
         """
         if self.level == self.LEVEL_DETAILED:
-            logger.warning(f"⚠️  枢密：敏感信息检测失败 - {error}")
+            self._send_notification(f"⚠️ 枢密：敏感信息检测失败 - {error}")
     
     def on_no_sensitive_data(self):
         """
@@ -108,12 +126,13 @@ class ShumiNotifier:
 
 
 # 便捷函数
-def create_notifier(config: Optional[dict] = None) -> ShumiNotifier:
+def create_notifier(config: Optional[dict] = None, message_callback: Optional[Callable] = None) -> ShumiNotifier:
     """
     从配置创建通知器
     
     Args:
         config: 配置字典，包含 notification_level
+        message_callback: 消息发送回调函数
         
     Returns:
         ShumiNotifier实例
@@ -122,4 +141,4 @@ def create_notifier(config: Optional[dict] = None) -> ShumiNotifier:
         config = {}
     
     level = config.get('notification_level', 'brief')
-    return ShumiNotifier(level=level)
+    return ShumiNotifier(level=level, message_callback=message_callback)
