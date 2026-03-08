@@ -6,6 +6,7 @@
 import json
 import hashlib
 import re
+import base64
 from dataclasses import dataclass, asdict
 from datetime import datetime
 from typing import Dict, Optional, List, Any
