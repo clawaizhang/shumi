@@ -127,8 +127,41 @@ EOF
     echo "  ✓ 新配置已创建"
 fi
 
-# 创建安全目录
-mkdir -p "${HOME}/.openclaw/security"
+# 创建安全目录和事件目录
+mkdir -p "${HOME}/.openclaw/security/events"
+
+# 安装并启动 Shumi Agent
+echo ""
+echo -e "${YELLOW}安装 Shumi Agent...${NC}"
+
+# 创建事件目录
+mkdir -p "${HOME}/.openclaw/security/events"
+
+# 安装 systemd 服务（如果系统支持 systemd）
+if command -v systemctl &> /dev/null; then
+    SERVICE_FILE="/etc/systemd/system/shumi-agent.service"
+    
+    if [ -f "$SERVICE_FILE" ]; then
+        echo "  ✓ systemd 服务已存在"
+    else
+        echo "  安装 systemd 服务..."
+        sudo cp "${INSTALL_DIR}/scripts/shumi-agent.service" "$SERVICE_FILE" 2>/dev/null || {
+            echo "  ⚠️  无法安装 systemd 服务（可能需要 sudo 权限）"
+            echo "     手动运行: sudo cp ${INSTALL_DIR}/scripts/shumi-agent.service /etc/systemd/system/"
+            echo "     然后: sudo systemctl enable --now shumi-agent"
+        }
+        
+        if [ -f "$SERVICE_FILE" ]; then
+            sudo systemctl daemon-reload
+            sudo systemctl enable shumi-agent
+            sudo systemctl start shumi-agent
+            echo "  ✓ Shumi Agent 已启动"
+        fi
+    fi
+else
+    echo "  ℹ️  未检测到 systemd，Shumi Agent 需要手动运行:"
+    echo "     python3 ${INSTALL_DIR}/src/shumi/agent/shumi_agent.py"
+fi
 
 echo ""
 echo -e "${GREEN}================================${NC}"
@@ -137,10 +170,20 @@ echo -e "${GREEN}================================${NC}"
 echo ""
 echo "📁 安装位置: ${INSTALL_DIR}"
 echo "🧠 模型位置: ${INSTALL_DIR}/models/"
+echo "🤖 Agent位置: ${INSTALL_DIR}/src/shumi/agent/shumi_agent.py"
 echo "⚡ 加载速度: ~0.16秒"
 echo "💾 内存占用: ~96MB"
 echo "🔒 安全配置: ${HOME}/.openclaw/config.yaml"
+echo "📋 事件日志: ${HOME}/.openclaw/security/events/shumi.events.jsonl"
+echo ""
+echo "架构说明:"
+echo "  - Hook: OpenClaw插件，检测并加密敏感信息"
+echo "  - Agent: 独立进程，监听事件并发送通知"
 echo ""
 echo "运行测试:"
 echo "  cd ${INSTALL_DIR} && python3 -m pytest tests/test_integration.py -v"
+echo ""
+echo "查看 Agent 状态:"
+echo "  sudo systemctl status shumi-agent"
+echo "  sudo journalctl -u shumi-agent -f"
 echo ""

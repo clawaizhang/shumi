@@ -1,0 +1,25 @@
+[Unit]
+Description=Shumi Security Agent
+Documentation=https://github.com/clawaizhang/shumi
+After=network.target openclaw-gateway.service
+Wants=openclaw-gateway.service
+
+[Service]
+Type=simple
+User=%I
+Environment="HOME=/root"
+Environment="PATH=/usr/local/bin:/usr/bin:/bin"
+Environment="PYTHONPATH=/root/.shumi/src"
+WorkingDirectory=/root/.shumi
+ExecStart=/usr/bin/python3 /root/.shumi/src/shumi/agent/shumi_agent.py
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+# 资源限制
+MemoryLimit=256M
+CPUQuota=50%
+
+[Install]
+WantedBy=multi-user.target

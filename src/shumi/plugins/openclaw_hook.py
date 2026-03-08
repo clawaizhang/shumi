@@ -17,6 +17,7 @@ from shumi.core.encryptor import LocalEncryptor, LocalDecryptor
 from shumi.core.placeholder import PlaceholderManager, is_placeholder
 from shumi.core.auditor import SecurityAuditor, get_default_auditor
 from shumi.core.notifier import ShumiNotifier, create_notifier
+from shumi.core.event_publisher import ShumiEventPublisher, create_event_publisher
 
 logger = logging.getLogger(__name__)
 
@@ -57,6 +58,7 @@ class SecurityAuditHook:
         self._placeholder_manager: Optional[PlaceholderManager] = None
         self._auditor: Optional[SecurityAuditor] = None
         self._notifier: Optional[ShumiNotifier] = None
+        self._event_publisher: Optional[ShumiEventPublisher] = None
         
         self._init_components()
     
@@ -115,6 +117,10 @@ class SecurityAuditHook:
                 self._config,
                 message_callback=self._add_notification
             )
+            
+            # 初始化事件发布器（用于Agent通知）
+            self._event_publisher = create_event_publisher()
+            logger.info("Event publisher initialized")
             
             self._initialized = True
             logger.info("SecurityAuditHook initialized successfully")
@@ -188,6 +194,32 @@ class SecurityAuditHook:
             # 通知用户加密完成
             if self._notifier and encrypted_count > 0:
                 self._notifier.on_encryption(encrypted_count, detected_types)
+            
+            # 发布事件给 Agent（如果配置了）
+            if self._event_publisher and encrypted_count > 0:
+                try:
+                    # 从 context 获取聊天信息
+                    chat_id = context.get('chat_id') if context else None
+                    channel = context.get('channel') if context else None
+                    
+                    if chat_id and channel:
+                        # 计算最高置信度
+                        max_confidence = max(m.get('confidence', 0) for m in matches)
+                        
+                        # 生成脱敏预览
+                        preview = text[:50] + "..." if len(text) > 50 else text
+                        
+                        self._event_publisher.publish_detection(
+                            chat_id=chat_id,
+                            channel=channel,
+                            detected_types=list(set(detected_types)),  # 去重
+                            confidence=max_confidence,
+                            placeholder_count=encrypted_count,
+                            message_preview=preview
+                        )
+                        logger.debug(f"Published detection event for chat {chat_id}")
+                except Exception as e:
+                    logger.debug(f"Failed to publish event: {e}")
             
             return processed_text
             
