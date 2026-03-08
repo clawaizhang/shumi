@@ -12,6 +12,13 @@ pip-log.txt
 # Data files (large)
 *.json
 !chunk_strategy.json
+!tokenizer_config.json
+!special_tokens_map.json
+!sensitive_centers.json
+
+# Tokenizer files (keep in repo)
+!tokenizer.json
+!vocab.txt
 
 # Models (use Release instead)
 *.onnx
